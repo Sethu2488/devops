@@ -1,0 +1,63 @@
+- name: Create Azure VM
+  hosts: localhost
+  connection: local
+  tasks:
+  - name: Create resource group
+    azure_rm_resourcegroup:
+      name: azsetfirstrg
+      location: eastus
+  - name: Create virtual network
+    azure_rm_virtualnetwork:
+      resource_group: azsetfirstrg
+      name: azsetvnet
+      address_prefixes: "10.0.0.0/16"
+  - name: Add subnet
+    azure_rm_subnet:
+      resource_group: azsetfirstrg
+      name: azsetsubnet
+      address_prefix: "10.0.1.0/24"
+      virtual_network: azsetvnet
+  - name: Create public IP address
+    azure_rm_publicipaddress:
+      resource_group: azsetfirstrg
+      allocation_method: Static
+      name: azsetpublicip
+    register: output_ip_address
+  - name: Dump public IP for VM which will be created
+    debug:
+      msg: "The public IP is {{ output_ip_address.state.ip_address }}."
+  - name: Create Network Security Group that allows SSH
+    azure_rm_securitygroup:
+      resource_group: azsetfirstrg
+      name: azsetnsg
+      rules:
+        - name: SSH
+          protocol: Tcp
+          destination_port_range: 22
+          access: Allow
+          priority: 1001
+          direction: Inbound
+  - name: Create virtual network interface card
+    azure_rm_networkinterface:
+      resource_group: azsetfirstrg
+      name: azsetnic
+      virtual_network: azsetvnet
+      subnet: azsetsubnet
+      public_ip_name: azsetpublicip
+      security_group: azsetnsg
+  - name: Create VM
+    azure_rm_virtualmachine:
+      resource_group: azsetfirstrg
+      name: azsetfirstvm
+      vm_size: Standard_DS1_v2
+      admin_username: azsetuser
+      ssh_password_enabled: false
+      ssh_public_keys:
+        - path: /home/azureuser/.ssh/authorized_keys
+          key_data: <ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQEAvzYK9FP9JIZN0EuNwe3QnCDS9YK/eDnRvzU1E5JM1TyQQ588kUu2QFkwIliOi8Gs0pYW9BAVKHiWWb1DoQuVr4G8zerLykzQQTpge23NWcGaEO5r01fv+IPISdN32hNC1nVnWMEQJ2OrFT5qYlVE9xFylHlh5UV6JvoD++tC/Zt1TkzA4VnN3HCiZCa1Hit7pBw/BEzOqKqP2pFxtgJWLXg7Z58tA7sYthuyPp+PI6Slbsl58eH0Q9PIqtfexfy4Y7eLSHFm2CJYVuf25/aNjxyqOdKwj9VT5FP1RA0gkw+pAHKK+6t1iaQXb+Ceb/T/QJo/W+LX33ByQTeoaTbfw== rsa-key-20210309>
+      network_interfaces: azsetnic
+      image:
+        offer: CentOS
+        publisher: OpenLogic
+        sku: '7.5'
+        version: latest
